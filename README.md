@@ -32,7 +32,7 @@ Project ini juga merupakan implementasi dari **Tugas Hands On 2 Mata Kuliah Sist
 | 3    | LED nyala satu per satu secara bergantian tiap 500ms |
 
 Detail lengkap bisa dilihat di dokumen:  
-[Pattern Description (PDF)](Docs/pattern-summary.pdf)
+[Pattern Summary (PDF)](Docs/pattern-summary.pdf)
 
 
 ## Interrupt Logic

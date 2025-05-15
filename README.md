@@ -9,7 +9,7 @@ Project ini juga merupakan implementasi dari **Tugas Hands On 2 Mata Kuliah Sist
 ## Perangkat & Tools
 - MCU: **STM32F401CCU6** (Black Pill)
 - IDE: **STM32CubeIDE**
-- Library: **HAL (Hardware Abstraction Layer)**
+- Library: **HAL**
 - Button input:
   1. **PA0**: tombol interrupt (EXTI0, langsung balik ke pattern default)
   2. **PA1**: tombol normal untuk looping
@@ -38,7 +38,7 @@ Detail lengkap bisa dilihat di dokumen:
 ## Interrupt Logic
 - Tombol pada **PA0** di-set sebagai **EXTI (Interrupt Rising Edge)**
 - Callback `HAL_GPIO_EXTI_Callback()` digunakan untuk mendeteksi penekanan tombol
-- Implementasi **debouncing software 200ms** dilakukan dengan `HAL_GetTick()` (delay berbasis waktu)
+- Implementasi **debouncing software 200ms** dilakukan dengan `HAL_GetTick()`
 
 
 ## Dokumentasi Rangkaian Fisik

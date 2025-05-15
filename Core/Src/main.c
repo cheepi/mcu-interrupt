@@ -1,9 +1,9 @@
 #include "main.h"
 
-#define BTN_EXTI_PIN  GPIO_PIN_0   // PA0: interrupt → langsung ke default
+#define BTN_EXTI_PIN  GPIO_PIN_0   // PA0: tombol interrupt langsung ke default
 #define BTN_EXTI_PORT GPIOA
 
-#define BTN_LOOP_PIN  GPIO_PIN_1   // PA1: loop biasa
+#define BTN_LOOP_PIN  GPIO_PIN_1   // PA1: tombol loop biasa
 #define BTN_LOOP_PORT GPIOA
 
 #define LED1_PIN   GPIO_PIN_5   // PA5
@@ -18,7 +18,7 @@ static Phase    led2_phase = PHASE_ON;
 static Phase    led3_phase = PHASE_ON;
 static uint32_t t_window, t_a5, t_a6, t_blink;
 
-volatile uint8_t pattern = 0;  // 0…3
+volatile uint8_t pattern = 0;  // 0 - 3
 
 // PA0 EXTI: langsung reset ke default (pattern 0)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {

@@ -1,33 +1,29 @@
 #include "main.h"
 
-#define BTN_PIN    GPIO_PIN_0
-#define BTN_PORT   GPIOA
+#define BTN_EXTI_PIN  GPIO_PIN_0   // PA0: interrupt → langsung ke default
+#define BTN_EXTI_PORT GPIOA
+
+#define BTN_LOOP_PIN  GPIO_PIN_1   // PA1: loop biasa
+#define BTN_LOOP_PORT GPIOA
 
 #define LED1_PIN   GPIO_PIN_5   // PA5
 #define LED2_PIN   GPIO_PIN_6   // PA6
 #define LED3_PIN   GPIO_PIN_13  // PC13 (active-low)
 
-// status nyala/mati per led
 typedef enum { PHASE_ON, PHASE_OFF } Phase;
 
-// variabel untuk pattern 2
+// state untuk pattern 2
 static Phase    led1_phase = PHASE_ON;
 static Phase    led2_phase = PHASE_ON;
 static Phase    led3_phase = PHASE_ON;
-static uint32_t t_window;
-static uint32_t t_a5;
-static uint32_t t_a6;
-static uint32_t t_blink;
+static uint32_t t_window, t_a5, t_a6, t_blink;
 
-volatile uint8_t pattern = 0;
+volatile uint8_t pattern = 0;  // 0…3
 
-// callback buat interrupt tombol (ada debounce dikit)
+// PA0 EXTI: langsung reset ke default (pattern 0)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    static uint32_t last = 0;
-    uint32_t now = HAL_GetTick();
-    if (GPIO_Pin == BTN_PIN && now - last > 200) {
-        pattern = (pattern + 1) & 3;
-        last = now;
+    if (GPIO_Pin == BTN_EXTI_PIN) {
+        pattern = 0;
     }
 }
 
@@ -39,22 +35,31 @@ int main(void) {
     SystemClock_Config();
     MX_GPIO_Init();
 
-    uint8_t  prev_pattern = 0xFF; // biar langsung ke-trigger pas awal
-    uint32_t t_sync       = 0;
-    uint32_t t_alt        = 0;
-    uint8_t  step_alt     = 0;
+    uint8_t  prev_pattern = 0xFF;
+    uint32_t t_sync        = HAL_GetTick();
+    uint32_t t_alt         = HAL_GetTick();
+    uint8_t  step_alt      = 0;
+    uint32_t last_loop_btn = 0;
 
     while (1) {
         uint32_t now = HAL_GetTick();
 
-        // kalo ganti pola, reset semua timer & status led
+        // tombol muter (PA1)
+        if (HAL_GPIO_ReadPin(BTN_LOOP_PORT, BTN_LOOP_PIN) == GPIO_PIN_SET) {
+            if (now - last_loop_btn > 200) {
+                pattern = (pattern + 1) & 3;
+                last_loop_btn = now;
+            }
+        }
+
+        // kalau ganti pattern, reset timer & initial state
         if (pattern != prev_pattern) {
             t_sync   = now;
             t_alt    = now;
             step_alt = 0;
 
             if (pattern == 2) {
-                // reset semua status led dan timer internal
+                // reset semua fase & timer pattern 2
                 led1_phase = PHASE_ON;
                 led2_phase = PHASE_ON;
                 led3_phase = PHASE_ON;
@@ -62,53 +67,66 @@ int main(void) {
                 t_a5       = now;
                 t_a6       = now;
                 t_blink    = now;
-
-                // semua nyala
-                HAL_GPIO_WritePin(GPIOA, LED1_PIN | LED2_PIN, GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(GPIOA, LED1_PIN|LED2_PIN, GPIO_PIN_RESET);
                 HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_RESET);
             }
 
-            // inisialisasi led sesuai pattern
+            // initial state per pattern lain
             switch (pattern) {
                 case 0:
-                    // nyala semua
-                    HAL_GPIO_WritePin(GPIOA, LED1_PIN | LED2_PIN, GPIO_PIN_SET);
-                    HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_RESET);
+                    // nothing here, handled below
                     break;
                 case 1:
-                    // mati semua dulu buat blinking sync
-                    HAL_GPIO_WritePin(GPIOA, LED1_PIN | LED2_PIN, GPIO_PIN_RESET);
+                    HAL_GPIO_WritePin(GPIOA, LED1_PIN|LED2_PIN, GPIO_PIN_RESET);
                     HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_SET);
                     break;
                 case 3:
-                    // awalnya mati semua, terus nyalain PA5 doang
-                    HAL_GPIO_WritePin(GPIOA, LED1_PIN | LED2_PIN, GPIO_PIN_RESET);
+                    HAL_GPIO_WritePin(GPIOA, LED1_PIN|LED2_PIN, GPIO_PIN_RESET);
                     HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_SET);
                     HAL_GPIO_WritePin(GPIOA, LED1_PIN, GPIO_PIN_SET);
-                    break;
-                default:
                     break;
             }
             prev_pattern = pattern;
         }
 
-        // logic per pola
         switch (pattern) {
-            case 0:
-                // nyala semua, gak perlu diapa-apain
+            case 0: {
+                // default circular pairs 0→1→2→0 tiap 500ms
+                static uint8_t phase = 0;
+                static uint32_t t0  = 0;
+                if (now - t0 >= 1000) {
+                    t0 = now;
+                    phase = (phase + 1) % 3;
+                }
+                if (phase == 0) {
+                    // PA5+PA6 ON, PC13 OFF
+                    HAL_GPIO_WritePin(GPIOA, LED1_PIN|LED2_PIN, GPIO_PIN_SET);
+                    HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_SET);
+                } else if (phase == 1) {
+                    // PA6+PC13 ON, PA5 OFF
+                    HAL_GPIO_WritePin(GPIOA, LED1_PIN, GPIO_PIN_RESET);
+                    HAL_GPIO_WritePin(GPIOA, LED2_PIN, GPIO_PIN_SET);
+                    HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_RESET);
+                } else {
+                    // PC13+PA5 ON, PA6 OFF
+                    HAL_GPIO_WritePin(GPIOA, LED1_PIN, GPIO_PIN_SET);
+                    HAL_GPIO_WritePin(GPIOA, LED2_PIN, GPIO_PIN_RESET);
+                    HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_RESET);
+                }
                 break;
+            }
 
             case 1:
-                // blinking bareng tiap 500ms
+                // sync blink 500ms
                 if (now - t_sync >= 500) {
                     t_sync = now;
-                    HAL_GPIO_TogglePin(GPIOA, LED1_PIN | LED2_PIN);
+                    HAL_GPIO_TogglePin(GPIOA, LED1_PIN|LED2_PIN);
                     HAL_GPIO_TogglePin(GPIOC, LED3_PIN);
                 }
                 break;
 
             case 2:
-                // nyalanya punya rasio beda2 (3:2:1) dengan waktu total 1200ms
+                // ratio 3:2:1 over 1200ms
                 if (now - t_window >= 1200) {
                     t_window   = now;
                     t_a5       = now;
@@ -117,52 +135,48 @@ int main(void) {
                     led1_phase = PHASE_ON;
                     led2_phase = PHASE_ON;
                     led3_phase = PHASE_ON;
-                    HAL_GPIO_WritePin(GPIOA, LED1_PIN | LED2_PIN, GPIO_PIN_RESET);
+                    HAL_GPIO_WritePin(GPIOA, LED1_PIN|LED2_PIN, GPIO_PIN_RESET);
                     HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_RESET);
                 }
-
-                // led3: nyala 1100ms, mati 100ms
+                // LED3: ON1100/OFF100
                 if (led3_phase == PHASE_ON && now - t_blink >= 1100) {
                     HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_SET);
                     led3_phase = PHASE_OFF;
-                    t_blink = now;
+                    t_blink    = now;
                 } else if (led3_phase == PHASE_OFF && now - t_blink >= 100) {
                     HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_RESET);
                     led3_phase = PHASE_ON;
-                    t_blink = now;
+                    t_blink    = now;
                 }
-
-                // led2 (PA6): nyala 300ms, mati 100ms
+                // LED2: ON300/OFF100
                 if (led2_phase == PHASE_ON && now - t_a6 >= 300) {
                     HAL_GPIO_WritePin(GPIOA, LED2_PIN, GPIO_PIN_SET);
                     led2_phase = PHASE_OFF;
-                    t_a6 = now;
+                    t_a6       = now;
                 } else if (led2_phase == PHASE_OFF && now - t_a6 >= 100) {
                     HAL_GPIO_WritePin(GPIOA, LED2_PIN, GPIO_PIN_RESET);
                     led2_phase = PHASE_ON;
-                    t_a6 = now;
+                    t_a6       = now;
                 }
-
-                // led1 (PA5): nyala 500ms, mati 100ms
+                // LED1: ON500/OFF100
                 if (led1_phase == PHASE_ON && now - t_a5 >= 500) {
                     HAL_GPIO_WritePin(GPIOA, LED1_PIN, GPIO_PIN_SET);
                     led1_phase = PHASE_OFF;
-                    t_a5 = now;
+                    t_a5       = now;
                 } else if (led1_phase == PHASE_OFF && now - t_a5 >= 100) {
                     HAL_GPIO_WritePin(GPIOA, LED1_PIN, GPIO_PIN_RESET);
                     led1_phase = PHASE_ON;
-                    t_a5 = now;
+                    t_a5       = now;
                 }
                 break;
 
             case 3:
-                // led nyala gantian tiap 500ms
+                // alternate blink 500ms
                 if (now - t_alt >= 500) {
                     t_alt = now;
                     step_alt = (step_alt + 1) % 3;
-                    HAL_GPIO_WritePin(GPIOA, LED1_PIN | LED2_PIN, GPIO_PIN_RESET);
+                    HAL_GPIO_WritePin(GPIOA, LED1_PIN|LED2_PIN, GPIO_PIN_RESET);
                     HAL_GPIO_WritePin(GPIOC, LED3_PIN, GPIO_PIN_SET);
-
                     if (step_alt == 0)
                         HAL_GPIO_WritePin(GPIOA, LED1_PIN, GPIO_PIN_SET);
                     else if (step_alt == 1)
@@ -186,8 +200,8 @@ void SystemClock_Config(void) {
     osc.PLL.PLLState   = RCC_PLL_NONE;
     HAL_RCC_OscConfig(&osc);
 
-    clk.ClockType      = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-                       | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    clk.ClockType      = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                       |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
     clk.SYSCLKSource   = RCC_SYSCLKSOURCE_HSI;
     clk.AHBCLKDivider  = RCC_SYSCLK_DIV1;
     clk.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -202,23 +216,29 @@ static void MX_GPIO_Init(void) {
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_SYSCFG_CLK_ENABLE();
 
-    // PA5 & PA6 buat led output
-    gpio.Pin   = LED1_PIN | LED2_PIN;
+    // led PA5 & PA6
+    gpio.Pin   = LED1_PIN|LED2_PIN;
     gpio.Mode  = GPIO_MODE_OUTPUT_PP;
     gpio.Pull  = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &gpio);
 
-    // PC13 juga buat led output (active low)
+    // led PC13
     gpio.Pin   = LED3_PIN;
     gpio.Mode  = GPIO_MODE_OUTPUT_PP;
     gpio.Pull  = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOC, &gpio);
 
-    // tombol PA0, interrupt rising edge, pull-down
-    gpio.Pin   = BTN_PIN;
-    gpio.Mode  = GPIO_MODE_IT_RISING;
-    gpio.Pull  = GPIO_PULLDOWN;
-    HAL_GPIO_Init(BTN_PORT, &gpio);
+    // tombol muter PA1
+    gpio.Pin  = BTN_LOOP_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLDOWN;
+    HAL_GPIO_Init(BTN_LOOP_PORT, &gpio);
+
+    // tombol interrupt PA0
+    gpio.Pin  = BTN_EXTI_PIN;
+    gpio.Mode = GPIO_MODE_IT_RISING;
+    gpio.Pull = GPIO_PULLDOWN;
+    HAL_GPIO_Init(BTN_EXTI_PORT, &gpio);
 
     HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(EXTI0_IRQn);

@@ -10,7 +10,9 @@ Project ini juga merupakan implementasi dari **Tugas Hands On 2 Mata Kuliah Sist
 - MCU: **STM32F401CCU6** (Black Pill)
 - IDE: **STM32CubeIDE**
 - Library: **HAL (Hardware Abstraction Layer)**
-- Button input: **PA0 (EXTI0, rising edge)**
+- Button input:
+  1. **PA0**: tombol interrupt (EXTI0, langsung balik ke pattern default)
+  2. **PA1**: tombol normal untuk looping
 - LED Output:
   1. **PA5 (LED1)**
   2. **PA6 (LED2)**
@@ -18,17 +20,19 @@ Project ini juga merupakan implementasi dari **Tugas Hands On 2 Mata Kuliah Sist
       
 
 ## LED Pattern Summary
-Tombol ditekan → interrupt terjadi → pola berubah (circular: 0 → 1 → 2 → 3 → 0 ...)
+- Tombol PA1 ditekan → pola LED berubah secara berurutan (circular):
+0 → 1 → 2 → 3 → 0 → ...
+- Tombol PA0 ditekan (interrupt) → langsung reset ke pattern 0
 
 | Pola | Deskripsi |
 |------|-----------|
-| 0    | Semua LED menyala |
+| 0    | 2 LED nyala, 1 mati |
 | 1    | Semua LED blinking bersamaan tiap 500ms |
 | 2    | LED nyala beda rasio (3:2:1) selama 1200ms total (PA5:500ms, PA6:300ms, PC13:1100ms) |
 | 3    | LED nyala satu per satu secara bergantian tiap 500ms |
 
 Detail lengkap bisa dilihat di dokumen:  
-[Pattern Description (PDF)](Docs/pattern-desc.pdf)
+[Pattern Description (PDF)](Docs/pattern-summary.pdf)
 
 
 ## Interrupt Logic
@@ -40,4 +44,4 @@ Detail lengkap bisa dilihat di dokumen:
 ## Dokumentasi Rangkaian Fisik
 [Rangkaian Fisik](Docs/setup.jpg)
 
-[Video Jalannya Program - Youtube](https://www.youtube.com/watch?v=N6ts76qWAWY)
+[Video Jalannya Program - Youtube]([https://www.youtube.com/watch?v=N6ts76qWAWY](https://youtube.com/shorts/MptWaa3qdX4?feature=shared))

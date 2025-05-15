@@ -44,4 +44,4 @@ Detail lengkap bisa dilihat di dokumen:
 ## Dokumentasi Rangkaian Fisik
 [Rangkaian Fisik](Docs/setup.jpg)
 
-[Video Jalannya Program - Youtube]([https://www.youtube.com/watch?v=N6ts76qWAWY](https://youtube.com/shorts/MptWaa3qdX4?feature=shared))
+[Video Jalannya Program - Youtube](https://youtube.com/shorts/MptWaa3qdX4?feature=shared)
